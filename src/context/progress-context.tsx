@@ -5,16 +5,22 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import type { CloudSyncState } from "@/context/auth-context.tsx";
 import { computeNextSrsRecord } from "@/lib/srs.ts";
 import {
-  loadUserProgress,
+  buildScopedProgressStorageKey,
+  clearLegacyAnonymousProgress,
+  loadLegacyAnonymousProgress,
+  loadScopedUserProgressCache,
   type ProgressSelectorsSummary,
-  type StorageLoadResult,
-  saveUserProgress,
+  sanitizeProgressForPersistence,
+  saveScopedUserProgressCache,
   summarizeProgressState,
 } from "@/lib/storage.ts";
+import { supabase } from "@/lib/supabase.ts";
 import type { FoundationModuleId, ItepSkill, StudyStatus } from "@/schemas/curriculum.schema.ts";
 import {
   createInitialUserProgress,
@@ -39,10 +45,21 @@ export type BackupImportResult =
   | { readonly ok: true; readonly messageEs: string }
   | { readonly ok: false; readonly errorEs: string };
 
+export interface ProgressProviderProps {
+  readonly userId: string;
+  readonly initialProgress: UserProgress;
+  readonly hasUnsyncedLocalChangesOnBoot: boolean;
+  readonly recoveredFromCorruption: boolean;
+  readonly decryptedGeminiApiKey: string | null;
+  readonly onCloudSyncStateChange: (state: CloudSyncState) => void;
+  readonly children: ReactNode;
+}
+
 interface ProgressContextValue {
   readonly progress: UserProgress;
   readonly summary: ProgressSelectorsSummary;
   readonly recoveredFromCorruption: boolean;
+  readonly hasLegacyBrowserProgress: boolean;
   readonly getDayStatus: (dayNumber: number) => StudyStatus;
   readonly setDayStatus: (dayNumber: number, status: StudyStatus) => void;
   readonly getSectionStatus: (dayNumber: number, skill: ItepSkill) => StudyStatus;
@@ -60,9 +77,9 @@ interface ProgressContextValue {
   readonly addCustomVocabularyItem: (item: CustomVocabularyItem) => void;
   readonly updateCustomVocabularyItem: (item: CustomVocabularyItem) => void;
   readonly deleteCustomVocabularyItem: (itemId: string) => void;
-  readonly setGeminiApiKey: (apiKey: string) => void;
   readonly exportBackupJson: () => void;
   readonly importBackupJsonText: (rawJson: string) => BackupImportResult;
+  readonly importLegacyBrowserProgress: () => BackupImportResult;
   readonly resetAllProgress: () => void;
 }
 
@@ -72,40 +89,146 @@ function buildSectionKey(dayNumber: number, skill: ItepSkill): string {
   return `${dayNumber}:${skill}`;
 }
 
-export function ProgressProvider({ children }: { readonly children: ReactNode }) {
-  const initialLoad: StorageLoadResult = useMemo(() => loadUserProgress(), []);
-  const [progress, setProgress] = useState<UserProgress>(initialLoad.progress);
-  const [recoveredFromCorruption] = useState<boolean>(initialLoad.recoveredFromCorruption);
+export function ProgressProvider({
+  userId,
+  initialProgress,
+  hasUnsyncedLocalChangesOnBoot,
+  recoveredFromCorruption,
+  decryptedGeminiApiKey,
+  onCloudSyncStateChange,
+  children,
+}: ProgressProviderProps) {
+  const [baseProgress, setBaseProgress] = useState<UserProgress>(() =>
+    sanitizeProgressForPersistence(initialProgress),
+  );
+  const [hasLegacyBrowserProgress, setHasLegacyBrowserProgress] = useState<boolean>(
+    () => loadLegacyAnonymousProgress() !== null,
+  );
 
-  const commitUpdate = useCallback((updater: (prev: UserProgress) => UserProgress) => {
-    setProgress((prev) => {
-      const next = UserProgressSchema.parse(updater(prev));
-      saveUserProgress(next);
-      return next;
-    });
+  const lastSyncedAtRef = useRef<number>(hasUnsyncedLocalChangesOnBoot ? 0 : Date.now());
+  const pendingCloudSyncRef = useRef<{
+    readonly payload: UserProgress;
+    readonly updatedAtMs: number;
+  } | null>(null);
+  const syncInFlightRef = useRef<boolean>(false);
+  const isMountedRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
+
+  const flushCloudQueue = useCallback(async () => {
+    if (syncInFlightRef.current) {
+      return;
+    }
+    syncInFlightRef.current = true;
+    if (isMountedRef.current) {
+      onCloudSyncStateChange("syncing");
+    }
+
+    try {
+      while (pendingCloudSyncRef.current !== null) {
+        const currentBatch = pendingCloudSyncRef.current;
+        pendingCloudSyncRef.current = null;
+
+        const { error } = await supabase.from("user_study_progress").upsert(
+          {
+            user_id: userId,
+            schema_version: 1,
+            progress_payload: currentBatch.payload,
+          },
+          { onConflict: "user_id" },
+        );
+
+        if (error) {
+          if (isMountedRef.current) {
+            onCloudSyncStateChange("offline");
+          }
+          break;
+        }
+
+        lastSyncedAtRef.current = currentBatch.updatedAtMs;
+        if (pendingCloudSyncRef.current === null) {
+          saveScopedUserProgressCache(userId, currentBatch.payload, {
+            updatedAtMs: currentBatch.updatedAtMs,
+            syncedAtMs: currentBatch.updatedAtMs,
+          });
+          if (isMountedRef.current) {
+            onCloudSyncStateChange("synced");
+          }
+        }
+      }
+    } finally {
+      syncInFlightRef.current = false;
+    }
+  }, [onCloudSyncStateChange, userId]);
+
+  const enqueueCloudPersistence = useCallback(
+    (sanitizedNext: UserProgress, updatedAtMs: number) => {
+      saveScopedUserProgressCache(userId, sanitizedNext, {
+        updatedAtMs,
+        syncedAtMs: lastSyncedAtRef.current,
+      });
+      pendingCloudSyncRef.current = { payload: sanitizedNext, updatedAtMs };
+      void flushCloudQueue();
+    },
+    [flushCloudQueue, userId],
+  );
+
+  useEffect(() => {
+    if (hasUnsyncedLocalChangesOnBoot) {
+      enqueueCloudPersistence(sanitizeProgressForPersistence(initialProgress), Date.now());
+    }
+  }, [enqueueCloudPersistence, hasUnsyncedLocalChangesOnBoot, initialProgress]);
+
+  const commitUpdate = useCallback(
+    (updater: (prev: UserProgress) => UserProgress) => {
+      setBaseProgress((prev) => {
+        const sanitizedNext = sanitizeProgressForPersistence(updater(prev));
+        const nowMs = Date.now();
+        enqueueCloudPersistence(sanitizedNext, nowMs);
+        return sanitizedNext;
+      });
+    },
+    [enqueueCloudPersistence],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
+    const scopedKey = buildScopedProgressStorageKey(userId);
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === "road-to-b2:user-progress:v1") {
-        const reloaded = loadUserProgress();
-        setProgress(reloaded.progress);
+      if (event.key === scopedKey) {
+        const reloaded = loadScopedUserProgressCache(userId);
+        setBaseProgress(reloaded.progress);
       }
     };
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener("storage", handleStorage);
     };
-  }, []);
+  }, [userId]);
+
+  const progress: UserProgress = useMemo(
+    () => ({
+      ...baseProgress,
+      settings:
+        decryptedGeminiApiKey && decryptedGeminiApiKey.trim().length > 0
+          ? { geminiApiKey: decryptedGeminiApiKey.trim() }
+          : {},
+    }),
+    [baseProgress, decryptedGeminiApiKey],
+  );
 
   const summary = useMemo(() => summarizeProgressState(progress), [progress]);
 
   const getDayStatus = useCallback(
-    (dayNumber: number): StudyStatus => progress.dayStatuses[String(dayNumber)] ?? "pending",
-    [progress.dayStatuses],
+    (dayNumber: number): StudyStatus => baseProgress.dayStatuses[String(dayNumber)] ?? "pending",
+    [baseProgress.dayStatuses],
   );
 
   const setDayStatus = useCallback(
@@ -123,8 +246,8 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
 
   const getSectionStatus = useCallback(
     (dayNumber: number, skill: ItepSkill): StudyStatus =>
-      progress.sectionStatuses[buildSectionKey(dayNumber, skill)] ?? "pending",
-    [progress.sectionStatuses],
+      baseProgress.sectionStatuses[buildSectionKey(dayNumber, skill)] ?? "pending",
+    [baseProgress.sectionStatuses],
   );
 
   const setSectionStatus = useCallback(
@@ -165,8 +288,8 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
 
   const getFoundationStatus = useCallback(
     (moduleId: FoundationModuleId): StudyStatus =>
-      progress.foundationStatuses[moduleId] ?? "pending",
-    [progress.foundationStatuses],
+      baseProgress.foundationStatuses[moduleId] ?? "pending",
+    [baseProgress.foundationStatuses],
   );
 
   const setFoundationStatus = useCallback(
@@ -192,7 +315,10 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
     [commitUpdate],
   );
 
-  const playedAudioSet = useMemo(() => new Set(progress.playedAudioIds), [progress.playedAudioIds]);
+  const playedAudioSet = useMemo(
+    () => new Set(baseProgress.playedAudioIds),
+    [baseProgress.playedAudioIds],
+  );
 
   const isAudioPlayed = useCallback(
     (trackId: string): boolean => playedAudioSet.has(trackId),
@@ -255,8 +381,8 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
   );
 
   const getVocabularySrsRecord = useCallback(
-    (itemId: string): VocabularySrsRecord | undefined => progress.vocabulary.srsRecords[itemId],
-    [progress.vocabulary.srsRecords],
+    (itemId: string): VocabularySrsRecord | undefined => baseProgress.vocabulary.srsRecords[itemId],
+    [baseProgress.vocabulary.srsRecords],
   );
 
   const recordVocabularySrsReview = useCallback(
@@ -326,26 +452,11 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
     [commitUpdate],
   );
 
-  const setGeminiApiKey = useCallback(
-    (apiKey: string) => {
-      const trimmed = apiKey.trim();
-      commitUpdate((prev) => ({
-        ...prev,
-        settings: trimmed.length > 0 ? { geminiApiKey: trimmed } : {},
-      }));
-    },
-    [commitUpdate],
-  );
-
   const exportBackupJson = useCallback(() => {
     if (typeof window === "undefined" || typeof document === "undefined") {
       return;
     }
-    // Strip credentials from portable backups to avoid leaking personal Gemini API keys in JSON files
-    const sanitizedForExport: UserProgress = UserProgressSchema.parse({
-      ...progress,
-      settings: {},
-    });
+    const sanitizedForExport: UserProgress = sanitizeProgressForPersistence(baseProgress);
     const serialized = `${JSON.stringify(sanitizedForExport, null, 2)}\n`;
     const blob = new Blob([serialized], { type: "application/json;charset=utf-8" });
     const objectUrl = URL.createObjectURL(blob);
@@ -358,58 +469,84 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
     window.setTimeout(() => {
       URL.revokeObjectURL(objectUrl);
     }, 1000);
-  }, [progress]);
+  }, [baseProgress]);
 
-  const importBackupJsonText = useCallback((rawJson: string): BackupImportResult => {
-    if (rawJson.length > MAX_BACKUP_JSON_BYTES) {
+  const importBackupJsonText = useCallback(
+    (rawJson: string): BackupImportResult => {
+      if (rawJson.length > MAX_BACKUP_JSON_BYTES) {
+        return {
+          ok: false,
+          errorEs:
+            "El archivo supera el límite máximo permitido de 2 MB para respaldos JSON de Road to B2.",
+        };
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawJson);
+      } catch {
+        return {
+          ok: false,
+          errorEs:
+            "El archivo seleccionado no contiene JSON válido. Asegúrate de subir un respaldo exportado desde Road to B2.",
+        };
+      }
+
+      const validated = UserProgressSchema.safeParse(parsed);
+      if (!validated.success) {
+        const firstIssue = validated.error.issues[0];
+        const pathHint =
+          firstIssue && firstIssue.path.length > 0 ? ` (${firstIssue.path.join(".")})` : "";
+        return {
+          ok: false,
+          errorEs: `El archivo JSON no coincide con el esquema oficial de progreso Road to B2 v1${pathHint}.`,
+        };
+      }
+
+      const sanitized = sanitizeProgressForPersistence(validated.data);
+      setBaseProgress(sanitized);
+      enqueueCloudPersistence(sanitized, Date.now());
+      return {
+        ok: true,
+        messageEs: "Respaldo restaurado correctamente. Todo tu progreso ha sido sincronizado.",
+      };
+    },
+    [enqueueCloudPersistence],
+  );
+
+  const importLegacyBrowserProgress = useCallback((): BackupImportResult => {
+    const legacy = loadLegacyAnonymousProgress();
+    if (!legacy) {
+      setHasLegacyBrowserProgress(false);
       return {
         ok: false,
-        errorEs:
-          "El archivo supera el límite máximo permitido de 2 MB para respaldos JSON de Road to B2.",
+        errorEs: "No se encontró progreso previo sin cuenta en este navegador.",
       };
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(rawJson);
-    } catch {
-      return {
-        ok: false,
-        errorEs:
-          "El archivo seleccionado no contiene JSON válido. Asegúrate de subir un respaldo exportado desde Road to B2.",
-      };
-    }
+    setBaseProgress(legacy);
+    enqueueCloudPersistence(legacy, Date.now());
+    clearLegacyAnonymousProgress();
+    setHasLegacyBrowserProgress(false);
 
-    const validated = UserProgressSchema.safeParse(parsed);
-    if (!validated.success) {
-      const firstIssue = validated.error.issues[0];
-      const pathHint =
-        firstIssue && firstIssue.path.length > 0 ? ` (${firstIssue.path.join(".")})` : "";
-      return {
-        ok: false,
-        errorEs: `El archivo JSON no coincide con el esquema oficial de progreso Road to B2 v1${pathHint}.`,
-      };
-    }
-
-    saveUserProgress(validated.data);
-    setProgress(validated.data);
     return {
       ok: true,
-      messageEs: "Respaldo restaurado correctamente. Todo tu progreso ha sido sincronizado.",
+      messageEs: "Tu progreso local anterior fue vinculado a tu cuenta y sincronizado en la nube.",
     };
-  }, []);
+  }, [enqueueCloudPersistence]);
 
   const resetAllProgress = useCallback(() => {
     const fresh = createInitialUserProgress();
-    saveUserProgress(fresh);
-    setProgress(fresh);
-  }, []);
+    setBaseProgress(fresh);
+    enqueueCloudPersistence(fresh, Date.now());
+  }, [enqueueCloudPersistence]);
 
   const contextValue: ProgressContextValue = useMemo(
     () => ({
       progress,
       summary,
       recoveredFromCorruption,
+      hasLegacyBrowserProgress,
       getDayStatus,
       setDayStatus,
       getSectionStatus,
@@ -427,36 +564,37 @@ export function ProgressProvider({ children }: { readonly children: ReactNode })
       addCustomVocabularyItem,
       updateCustomVocabularyItem,
       deleteCustomVocabularyItem,
-      setGeminiApiKey,
       exportBackupJson,
       importBackupJsonText,
+      importLegacyBrowserProgress,
       resetAllProgress,
     }),
     [
-      progress,
-      summary,
-      recoveredFromCorruption,
+      addCustomVocabularyItem,
+      deleteCustomVocabularyItem,
+      exportBackupJson,
       getDayStatus,
-      setDayStatus,
-      getSectionStatus,
-      setSectionStatus,
       getFoundationStatus,
-      setFoundationStatus,
-      saveDiagnosticAttempt,
+      getSectionStatus,
+      getVocabularySrsRecord,
+      hasLegacyBrowserProgress,
+      importBackupJsonText,
+      importLegacyBrowserProgress,
       isAudioPlayed,
       markAudioPlayed,
-      saveWritingDraft,
-      saveSpeakingSelfScore,
+      progress,
       recordMockAttempt,
-      getVocabularySrsRecord,
       recordVocabularySrsReview,
-      addCustomVocabularyItem,
-      updateCustomVocabularyItem,
-      deleteCustomVocabularyItem,
-      setGeminiApiKey,
-      exportBackupJson,
-      importBackupJsonText,
+      recoveredFromCorruption,
       resetAllProgress,
+      saveDiagnosticAttempt,
+      saveSpeakingSelfScore,
+      saveWritingDraft,
+      setDayStatus,
+      setFoundationStatus,
+      setSectionStatus,
+      summary,
+      updateCustomVocabularyItem,
     ],
   );
 

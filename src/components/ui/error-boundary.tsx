@@ -1,7 +1,6 @@
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { saveUserProgress } from "@/lib/storage.ts";
-import { createInitialUserProgress } from "@/schemas/progress.schema.ts";
+import { clearAllScopedProgressCaches } from "@/lib/storage.ts";
 
 interface ErrorBoundaryProps {
   readonly children: ReactNode;
@@ -36,7 +35,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   };
 
   private handleCleanReset = () => {
-    saveUserProgress(createInitialUserProgress());
+    clearAllScopedProgressCaches();
     this.setState({ hasError: false, errorMessage: "" });
     window.location.reload();
   };

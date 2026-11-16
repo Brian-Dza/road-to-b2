@@ -27,5 +27,6 @@ pnpm-debug.log*
 # Local env overrides & secret files
 .env
 .env.*
+!.env.example
 *.pem
 *.key

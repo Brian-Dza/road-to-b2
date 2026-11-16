@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   createInitialUserProgress,
   type DiagnosticAttempt,
@@ -22,45 +23,213 @@ import {
   UserVocabularyStateSchema,
 } from "@/schemas/vocabulary.schema.ts";
 
-const USER_PROGRESS_STORAGE_KEY = "road-to-b2:user-progress:v1";
+const LEGACY_ANONYMOUS_STORAGE_KEY = "road-to-b2:user-progress:v1";
+const SCOPED_PROGRESS_PREFIX = "road-to-b2:user-progress:v2:";
 
-export interface StorageLoadResult {
+const ScopedProgressEnvelopeSchema = z.strictObject({
+  updatedAtMs: z.number().int().nonnegative(),
+  syncedAtMs: z.number().int().nonnegative(),
+  progress: UserProgressSchema,
+});
+
+export function buildScopedProgressStorageKey(userId: string): string {
+  return `${SCOPED_PROGRESS_PREFIX}${userId}`;
+}
+
+export function sanitizeProgressForPersistence(progress: UserProgress): UserProgress {
+  return UserProgressSchema.parse({
+    ...progress,
+    settings: {},
+  });
+}
+
+function isProgressMeaningfullyPopulated(progress: UserProgress): boolean {
+  return (
+    Object.keys(progress.dayStatuses).length > 0 ||
+    Object.keys(progress.sectionStatuses).length > 0 ||
+    progress.diagnosticAttempt !== null ||
+    Object.keys(progress.foundationStatuses).length > 0 ||
+    progress.playedAudioIds.length > 0 ||
+    Object.keys(progress.writingDrafts).length > 0 ||
+    Object.keys(progress.speakingSelfScores).length > 0 ||
+    progress.mockAttempts.length > 0 ||
+    progress.vocabulary.customItems.length > 0 ||
+    Object.keys(progress.vocabulary.srsRecords).length > 0
+  );
+}
+
+export interface ScopedStorageLoadResult {
   readonly progress: UserProgress;
+  readonly updatedAtMs: number;
+  readonly syncedAtMs: number;
+  readonly hasCachedEntry: boolean;
   readonly recoveredFromCorruption: boolean;
 }
 
-export function loadUserProgress(): StorageLoadResult {
+export function loadScopedUserProgressCache(userId: string): ScopedStorageLoadResult {
   if (typeof window === "undefined") {
-    return { progress: createInitialUserProgress(), recoveredFromCorruption: false };
+    return {
+      progress: createInitialUserProgress(),
+      updatedAtMs: 0,
+      syncedAtMs: 0,
+      hasCachedEntry: false,
+      recoveredFromCorruption: false,
+    };
   }
 
+  const key = buildScopedProgressStorageKey(userId);
   try {
-    const raw = window.localStorage.getItem(USER_PROGRESS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) {
-      return { progress: createInitialUserProgress(), recoveredFromCorruption: false };
+      return {
+        progress: createInitialUserProgress(),
+        updatedAtMs: 0,
+        syncedAtMs: 0,
+        hasCachedEntry: false,
+        recoveredFromCorruption: false,
+      };
     }
     const parsedJson: unknown = JSON.parse(raw);
-    const validated = UserProgressSchema.safeParse(parsedJson);
+    const validated = ScopedProgressEnvelopeSchema.safeParse(parsedJson);
     if (!validated.success) {
       const fresh = createInitialUserProgress();
-      window.localStorage.setItem(USER_PROGRESS_STORAGE_KEY, JSON.stringify(fresh));
-      return { progress: fresh, recoveredFromCorruption: true };
+      const freshEnvelope = {
+        updatedAtMs: 0,
+        syncedAtMs: 0,
+        progress: fresh,
+      };
+      window.localStorage.setItem(key, JSON.stringify(freshEnvelope));
+      return {
+        progress: fresh,
+        updatedAtMs: 0,
+        syncedAtMs: 0,
+        hasCachedEntry: false,
+        recoveredFromCorruption: true,
+      };
     }
-    return { progress: validated.data, recoveredFromCorruption: false };
+
+    return {
+      progress: sanitizeProgressForPersistence(validated.data.progress),
+      updatedAtMs: validated.data.updatedAtMs,
+      syncedAtMs: validated.data.syncedAtMs,
+      hasCachedEntry: true,
+      recoveredFromCorruption: false,
+    };
   } catch {
-    return { progress: createInitialUserProgress(), recoveredFromCorruption: true };
+    return {
+      progress: createInitialUserProgress(),
+      updatedAtMs: 0,
+      syncedAtMs: 0,
+      hasCachedEntry: false,
+      recoveredFromCorruption: true,
+    };
   }
 }
 
-export function saveUserProgress(progress: UserProgress): void {
-  const validated = UserProgressSchema.parse(progress);
+export function saveScopedUserProgressCache(
+  userId: string,
+  progress: UserProgress,
+  timestamps: { readonly updatedAtMs: number; readonly syncedAtMs: number },
+): void {
+  const sanitized = sanitizeProgressForPersistence(progress);
   if (typeof window === "undefined") {
     return;
   }
   try {
-    window.localStorage.setItem(USER_PROGRESS_STORAGE_KEY, JSON.stringify(validated));
+    const envelope = ScopedProgressEnvelopeSchema.parse({
+      updatedAtMs: timestamps.updatedAtMs,
+      syncedAtMs: timestamps.syncedAtMs,
+      progress: sanitized,
+    });
+    window.localStorage.setItem(buildScopedProgressStorageKey(userId), JSON.stringify(envelope));
   } catch {
     // Ignore storage quota errors in restricted browsing modes
+  }
+}
+
+export function parseCloudProgressPayload(rawPayload: unknown): {
+  readonly progress: UserProgress;
+  readonly isEmptyObject: boolean;
+  readonly hadSchemaError: boolean;
+} {
+  if (
+    typeof rawPayload === "object" &&
+    rawPayload !== null &&
+    !Array.isArray(rawPayload) &&
+    Object.keys(rawPayload).length === 0
+  ) {
+    return {
+      progress: createInitialUserProgress(),
+      isEmptyObject: true,
+      hadSchemaError: false,
+    };
+  }
+
+  const validated = UserProgressSchema.safeParse(rawPayload);
+  if (!validated.success) {
+    return {
+      progress: createInitialUserProgress(),
+      isEmptyObject: false,
+      hadSchemaError: true,
+    };
+  }
+
+  return {
+    progress: sanitizeProgressForPersistence(validated.data),
+    isEmptyObject: false,
+    hadSchemaError: false,
+  };
+}
+
+export function loadLegacyAnonymousProgress(): UserProgress | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    const raw = window.localStorage.getItem(LEGACY_ANONYMOUS_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed: unknown = JSON.parse(raw);
+    const validated = UserProgressSchema.safeParse(parsed);
+    if (!validated.success) {
+      return null;
+    }
+    const sanitized = sanitizeProgressForPersistence(validated.data);
+    return isProgressMeaningfullyPopulated(sanitized) ? sanitized : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearLegacyAnonymousProgress(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.removeItem(LEGACY_ANONYMOUS_STORAGE_KEY);
+  } catch {
+    // Ignore storage access errors
+  }
+}
+
+export function clearAllScopedProgressCaches(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const keysToDelete: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const k = window.localStorage.key(i);
+      if (k?.startsWith(SCOPED_PROGRESS_PREFIX)) {
+        keysToDelete.push(k);
+      }
+    }
+    for (const k of keysToDelete) {
+      window.localStorage.removeItem(k);
+    }
+  } catch {
+    // Ignore storage access errors
   }
 }
 

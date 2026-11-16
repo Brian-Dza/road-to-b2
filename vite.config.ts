@@ -16,6 +16,7 @@ export default defineConfig({
       output: {
         codeSplitting: {
           groups: [
+            { name: "supabase", test: /node_modules[\\/]@supabase/ },
             { name: "vendor", test: /node_modules/ },
             { name: "curriculum-sprint1", test: /src\/data\/days\/day-0[1-5]\.ts/ },
             { name: "curriculum-sprint2", test: /src\/data\/days\/day-(?:0[6-9]|10)\.ts/ },
