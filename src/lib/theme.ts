@@ -1,0 +1,102 @@
+import { useCallback, useEffect, useState } from "react";
+
+export type ThemePreference = "system" | "light" | "dark";
+
+const COLOR_SCHEME_STORAGE_KEY = "color-scheme";
+
+function readStoredPreference(): ThemePreference {
+  if (typeof window === "undefined") {
+    return "system";
+  }
+  try {
+    const raw = window.localStorage.getItem(COLOR_SCHEME_STORAGE_KEY);
+    if (raw === "light" || raw === "dark") {
+      return raw;
+    }
+    return "system";
+  } catch {
+    return "system";
+  }
+}
+
+function readSystemDark(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function syncMetaColorScheme(preference: ThemePreference): void {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const meta = document.querySelector('meta[name="color-scheme"]');
+  if (meta instanceof HTMLMetaElement) {
+    meta.content = preference === "system" ? "light dark" : preference;
+  }
+}
+
+export function useThemePreference() {
+  const [preference, setPreferenceState] = useState<ThemePreference>(() => readStoredPreference());
+  const [systemIsDark, setSystemIsDark] = useState<boolean>(() => readSystemDark());
+
+  useEffect(() => {
+    syncMetaColorScheme(preference);
+  }, [preference]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === COLOR_SCHEME_STORAGE_KEY || event.key === null) {
+        const next = readStoredPreference();
+        setPreferenceState(next);
+        syncMetaColorScheme(next);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+
+    if (typeof window.matchMedia !== "function") {
+      return () => {
+        window.removeEventListener("storage", handleStorage);
+      };
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleMediaChange = (event: MediaQueryListEvent) => {
+      setSystemIsDark(event.matches);
+    };
+    mediaQuery.addEventListener("change", handleMediaChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      mediaQuery.removeEventListener("change", handleMediaChange);
+    };
+  }, []);
+
+  const setThemePreference = useCallback((next: ThemePreference) => {
+    setPreferenceState(next);
+    syncMetaColorScheme(next);
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      if (next === "system") {
+        window.localStorage.removeItem(COLOR_SCHEME_STORAGE_KEY);
+      } else {
+        window.localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, next);
+      }
+    } catch {
+      // Theme still applies to <meta name="color-scheme"> even when storage is restricted
+    }
+  }, []);
+
+  return {
+    preference,
+    systemIsDark,
+    setThemePreference,
+  };
+}

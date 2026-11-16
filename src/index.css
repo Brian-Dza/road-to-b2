@@ -1,0 +1,368 @@
+@import "tailwindcss";
+
+:root {
+  --surface-canvas-light: #f8fafc;
+  --surface-canvas-dark: #0b1120;
+  --surface-card-light: #ffffff;
+  --surface-card-dark: #111827;
+  --surface-muted-light: #f1f5f9;
+  --surface-muted-dark: #1e293b;
+
+  --text-primary-light: #0f172a;
+  --text-primary-dark: #f8fafc;
+  --text-muted-light: #475569;
+  --text-muted-dark: #cbd5e1;
+
+  --border-subtle-light: #cbd5e1;
+  --border-subtle-dark: #334155;
+  --border-strong-light: #64748b;
+  --border-strong-dark: #64748b;
+
+  --brand-accent-light: #1d4ed8;
+  --brand-accent-dark: #60a5fa;
+  --brand-accent-hover-light: #1e40af;
+  --brand-accent-hover-dark: #93c5fd;
+  --brand-on-accent-light: #ffffff;
+  --brand-on-accent-dark: #0b1120;
+
+  --status-success-fg-light: #065f46;
+  --status-success-fg-dark: #a7f3d0;
+  --status-success-bg-light: #ecfdf5;
+  --status-success-bg-dark: #0c2922;
+  --status-success-border-light: #059669;
+  --status-success-border-dark: #34d399;
+
+  --status-warning-fg-light: #78350f;
+  --status-warning-fg-dark: #fde68a;
+  --status-warning-bg-light: #fffbeb;
+  --status-warning-bg-dark: #2c1f0b;
+  --status-warning-border-light: #d97706;
+  --status-warning-border-dark: #fbbf24;
+
+  --status-danger-fg-light: #881337;
+  --status-danger-fg-dark: #fecdd3;
+  --status-danger-bg-light: #fff1f2;
+  --status-danger-bg-dark: #31101b;
+  --status-danger-border-light: #e11d48;
+  --status-danger-border-dark: #fb7185;
+
+  --status-info-fg-light: #1e3a8a;
+  --status-info-fg-dark: #bfdbfe;
+  --status-info-bg-light: #eff6ff;
+  --status-info-bg-dark: #102242;
+  --status-info-border-light: #2563eb;
+  --status-info-border-dark: #60a5fa;
+
+  --surface-canvas: var(--surface-canvas-light);
+  --surface-card: var(--surface-card-light);
+  --surface-muted: var(--surface-muted-light);
+  --text-primary: var(--text-primary-light);
+  --text-muted: var(--text-muted-light);
+  --border-subtle: var(--border-subtle-light);
+  --border-strong: var(--border-strong-light);
+  --brand-accent: var(--brand-accent-light);
+  --brand-accent-hover: var(--brand-accent-hover-light);
+  --brand-on-accent: var(--brand-on-accent-light);
+
+  --status-success-fg: var(--status-success-fg-light);
+  --status-success-bg: var(--status-success-bg-light);
+  --status-success-border: var(--status-success-border-light);
+  --status-warning-fg: var(--status-warning-fg-light);
+  --status-warning-bg: var(--status-warning-bg-light);
+  --status-warning-border: var(--status-warning-border-light);
+  --status-danger-fg: var(--status-danger-fg-light);
+  --status-danger-bg: var(--status-danger-bg-light);
+  --status-danger-border: var(--status-danger-border-light);
+  --status-info-fg: var(--status-info-fg-light);
+  --status-info-bg: var(--status-info-bg-light);
+  --status-info-border: var(--status-info-border-light);
+
+  @media (prefers-color-scheme: dark) {
+    --surface-canvas: var(--surface-canvas-dark);
+    --surface-card: var(--surface-card-dark);
+    --surface-muted: var(--surface-muted-dark);
+    --text-primary: var(--text-primary-dark);
+    --text-muted: var(--text-muted-dark);
+    --border-subtle: var(--border-subtle-dark);
+    --border-strong: var(--border-strong-dark);
+    --brand-accent: var(--brand-accent-dark);
+    --brand-accent-hover: var(--brand-accent-hover-dark);
+    --brand-on-accent: var(--brand-on-accent-dark);
+
+    --status-success-fg: var(--status-success-fg-dark);
+    --status-success-bg: var(--status-success-bg-dark);
+    --status-success-border: var(--status-success-border-dark);
+    --status-warning-fg: var(--status-warning-fg-dark);
+    --status-warning-bg: var(--status-warning-bg-dark);
+    --status-warning-border: var(--status-warning-border-dark);
+    --status-danger-fg: var(--status-danger-fg-dark);
+    --status-danger-bg: var(--status-danger-bg-dark);
+    --status-danger-border: var(--status-danger-border-dark);
+    --status-info-fg: var(--status-info-fg-dark);
+    --status-info-bg: var(--status-info-bg-dark);
+    --status-info-border: var(--status-info-border-dark);
+  }
+
+  color-scheme: light dark;
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+    --surface-canvas: var(--surface-canvas-dark);
+    --surface-card: var(--surface-card-dark);
+    --surface-muted: var(--surface-muted-dark);
+    --text-primary: var(--text-primary-dark);
+    --text-muted: var(--text-muted-dark);
+    --border-subtle: var(--border-subtle-dark);
+    --border-strong: var(--border-strong-dark);
+    --brand-accent: var(--brand-accent-dark);
+    --brand-accent-hover: var(--brand-accent-hover-dark);
+    --brand-on-accent: var(--brand-on-accent-dark);
+
+    --status-success-fg: var(--status-success-fg-dark);
+    --status-success-bg: var(--status-success-bg-dark);
+    --status-success-border: var(--status-success-border-dark);
+    --status-warning-fg: var(--status-warning-fg-dark);
+    --status-warning-bg: var(--status-warning-bg-dark);
+    --status-warning-border: var(--status-warning-border-dark);
+    --status-danger-fg: var(--status-danger-fg-dark);
+    --status-danger-bg: var(--status-danger-bg-dark);
+    --status-danger-border: var(--status-danger-border-dark);
+    --status-info-fg: var(--status-info-fg-dark);
+    --status-info-bg: var(--status-info-bg-dark);
+    --status-info-border: var(--status-info-border-dark);
+  }
+
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+    --surface-canvas: var(--surface-canvas-light);
+    --surface-card: var(--surface-card-light);
+    --surface-muted: var(--surface-muted-light);
+    --text-primary: var(--text-primary-light);
+    --text-muted: var(--text-muted-light);
+    --border-subtle: var(--border-subtle-light);
+    --border-strong: var(--border-strong-light);
+    --brand-accent: var(--brand-accent-light);
+    --brand-accent-hover: var(--brand-accent-hover-light);
+    --brand-on-accent: var(--brand-on-accent-light);
+
+    --status-success-fg: var(--status-success-fg-light);
+    --status-success-bg: var(--status-success-bg-light);
+    --status-success-border: var(--status-success-border-light);
+    --status-warning-fg: var(--status-warning-fg-light);
+    --status-warning-bg: var(--status-warning-bg-light);
+    --status-warning-border: var(--status-warning-border-light);
+    --status-danger-fg: var(--status-danger-fg-light);
+    --status-danger-bg: var(--status-danger-bg-light);
+    --status-danger-border: var(--status-danger-border-light);
+    --status-info-fg: var(--status-info-fg-light);
+    --status-info-bg: var(--status-info-bg-light);
+    --status-info-border: var(--status-info-border-light);
+  }
+
+  @supports (color: light-dark(white, black)) {
+    --surface-canvas: light-dark(var(--surface-canvas-light), var(--surface-canvas-dark));
+    --surface-card: light-dark(var(--surface-card-light), var(--surface-card-dark));
+    --surface-muted: light-dark(var(--surface-muted-light), var(--surface-muted-dark));
+    --text-primary: light-dark(var(--text-primary-light), var(--text-primary-dark));
+    --text-muted: light-dark(var(--text-muted-light), var(--text-muted-dark));
+    --border-subtle: light-dark(var(--border-subtle-light), var(--border-subtle-dark));
+    --border-strong: light-dark(var(--border-strong-light), var(--border-strong-dark));
+    --brand-accent: light-dark(var(--brand-accent-light), var(--brand-accent-dark));
+    --brand-accent-hover: light-dark(
+      var(--brand-accent-hover-light),
+      var(--brand-accent-hover-dark)
+    );
+    --brand-on-accent: light-dark(var(--brand-on-accent-light), var(--brand-on-accent-dark));
+
+    --status-success-fg: light-dark(var(--status-success-fg-light), var(--status-success-fg-dark));
+    --status-success-bg: light-dark(var(--status-success-bg-light), var(--status-success-bg-dark));
+    --status-success-border: light-dark(
+      var(--status-success-border-light),
+      var(--status-success-border-dark)
+    );
+
+    --status-warning-fg: light-dark(var(--status-warning-fg-light), var(--status-warning-fg-dark));
+    --status-warning-bg: light-dark(var(--status-warning-bg-light), var(--status-warning-bg-dark));
+    --status-warning-border: light-dark(
+      var(--status-warning-border-light),
+      var(--status-warning-border-dark)
+    );
+
+    --status-danger-fg: light-dark(var(--status-danger-fg-light), var(--status-danger-fg-dark));
+    --status-danger-bg: light-dark(var(--status-danger-bg-light), var(--status-danger-bg-dark));
+    --status-danger-border: light-dark(
+      var(--status-danger-border-light),
+      var(--status-danger-border-dark)
+    );
+
+    --status-info-fg: light-dark(var(--status-info-fg-light), var(--status-info-fg-dark));
+    --status-info-bg: light-dark(var(--status-info-bg-light), var(--status-info-bg-dark));
+    --status-info-border: light-dark(
+      var(--status-info-border-light),
+      var(--status-info-border-dark)
+    );
+  }
+
+  accent-color: var(--brand-accent);
+}
+
+@theme inline {
+  --color-canvas: var(--surface-canvas);
+  --color-card: var(--surface-card);
+  --color-muted: var(--surface-muted);
+  --color-ink: var(--text-primary);
+  --color-ink-muted: var(--text-muted);
+  --color-line: var(--border-subtle);
+  --color-line-strong: var(--border-strong);
+  --color-brand: var(--brand-accent);
+  --color-brand-hover: var(--brand-accent-hover);
+  --color-on-brand: var(--brand-on-accent);
+  --color-ok-fg: var(--status-success-fg);
+  --color-ok-bg: var(--status-success-bg);
+  --color-ok-border: var(--status-success-border);
+  --color-warn-fg: var(--status-warning-fg);
+  --color-warn-bg: var(--status-warning-bg);
+  --color-warn-border: var(--status-warning-border);
+  --color-err-fg: var(--status-danger-fg);
+  --color-err-bg: var(--status-danger-bg);
+  --color-err-border: var(--status-danger-border);
+  --color-info-fg: var(--status-info-fg);
+  --color-info-bg: var(--status-info-bg);
+  --color-info-border: var(--status-info-border);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background-color: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand-accent);
+  outline-offset: 2px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visually hidden utility (visible on focus for skip links) */
+.visually-hidden:where(:not(:focus-within, :active, :focus)) {
+  position: absolute;
+  clip-path: inset(50%);
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  white-space: nowrap;
+}
+
+/* Native modal dialog scroll containment (modern-web-guidance: dialog) */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background-color: rgb(15 23 42 / 0.6);
+  backdrop-filter: blur(2px);
+}
+
+/* Accessible single-row tablist indicator (modern-web-guidance: tabs) */
+[role="tab"] {
+  position: relative;
+}
+
+[role="tab"][aria-selected="true"] {
+  color: var(--brand-accent);
+  &::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    border-block-end: 3px solid var(--brand-accent);
+  }
+}
+
+/* Responsive container-query contrast table (modern-web-guidance: responsive-table) */
+.foundation-table-wrapper {
+  overflow: auto;
+  max-inline-size: 100%;
+  container-type: inline-size;
+}
+
+.foundation-table-wrapper table {
+  border-collapse: separate;
+  border-spacing: 0;
+  inline-size: 100%;
+  --col-incorrect: "Estructura errónea (Evitar)";
+  --col-correct: "Estructura correcta iTEP";
+  --col-impact: "Impacto en el examen";
+}
+
+.foundation-table-wrapper thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+}
+
+@container (width < 680px) {
+  .foundation-table-wrapper table,
+  .foundation-table-wrapper thead,
+  .foundation-table-wrapper tbody,
+  .foundation-table-wrapper tr,
+  .foundation-table-wrapper th,
+  .foundation-table-wrapper td {
+    display: block;
+  }
+
+  .foundation-table-wrapper thead {
+    display: none;
+  }
+
+  .foundation-table-wrapper tbody tr {
+    margin-block-end: 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background-color: var(--surface-card);
+  }
+
+  .foundation-table-wrapper tbody th {
+    background-color: var(--surface-muted);
+    border-block-end: 1px solid var(--border-subtle);
+  }
+
+  .foundation-table-wrapper td:nth-child(2)::before {
+    content: var(--col-incorrect) ": ";
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--status-danger-fg);
+    margin-block-end: 0.25rem;
+  }
+
+  .foundation-table-wrapper td:nth-child(3)::before {
+    content: var(--col-correct) ": ";
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--status-success-fg);
+    margin-block-end: 0.25rem;
+  }
+
+  .foundation-table-wrapper td:nth-child(4)::before {
+    content: var(--col-impact) ": ";
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-block-end: 0.25rem;
+  }
+}

@@ -1,0 +1,31 @@
+# Dependencies & virtual environments
+node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Build output
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Playwright E2E artifacts
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Logs & OS files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+
+# Local env overrides & secret files
+.env
+.env.*
+*.pem
+*.key
