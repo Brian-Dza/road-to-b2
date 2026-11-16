@@ -6,7 +6,11 @@ import {
   MockExamIdSchema,
 } from "@/schemas/curriculum.schema.ts";
 
+export type AuthScreenMode = "signin" | "signup";
+
 export type AppRoute =
+  | { readonly kind: "landing" }
+  | { readonly kind: "auth"; readonly mode: AuthScreenMode }
   | { readonly kind: "dashboard" }
   | { readonly kind: "foundations"; readonly moduleId?: FoundationModuleId }
   | { readonly kind: "day"; readonly dayNumber: number }
@@ -14,13 +18,29 @@ export type AppRoute =
   | { readonly kind: "mock"; readonly mockExamId: MockExamId }
   | { readonly kind: "vocabulary"; readonly dayFilter?: number };
 
+export function isProtectedAppRoute(route: AppRoute): boolean {
+  return route.kind !== "landing" && route.kind !== "auth";
+}
+
 function parseHashToRoute(rawHash: string): AppRoute | null {
   if (rawHash === "#main-content") {
     return null;
   }
 
   const trimmed = rawHash.replace(/^#/, "").trim();
-  if (trimmed === "" || trimmed === "/" || trimmed === "/dashboard") {
+  if (trimmed === "" || trimmed === "/" || trimmed === "/welcome") {
+    return { kind: "landing" };
+  }
+
+  if (trimmed === "/auth" || trimmed === "/login" || trimmed === "/auth/signin") {
+    return { kind: "auth", mode: "signin" };
+  }
+
+  if (trimmed === "/signup" || trimmed === "/register" || trimmed === "/auth/signup") {
+    return { kind: "auth", mode: "signup" };
+  }
+
+  if (trimmed === "/dashboard") {
     return { kind: "dashboard" };
   }
 
@@ -70,11 +90,15 @@ function parseHashToRoute(rawHash: string): AppRoute | null {
     return { kind: "vocabulary" };
   }
 
-  return { kind: "dashboard" };
+  return { kind: "landing" };
 }
 
 function buildRouteHash(route: AppRoute): string {
   switch (route.kind) {
+    case "landing":
+      return "#/";
+    case "auth":
+      return route.mode === "signup" ? "#/signup" : "#/login";
     case "dashboard":
       return "#/dashboard";
     case "foundations":
@@ -93,9 +117,9 @@ function buildRouteHash(route: AppRoute): string {
 export function useHashRoute() {
   const [route, setRoute] = useState<AppRoute>(() => {
     if (typeof window === "undefined") {
-      return { kind: "dashboard" };
+      return { kind: "landing" };
     }
-    return parseHashToRoute(window.location.hash) ?? { kind: "dashboard" };
+    return parseHashToRoute(window.location.hash) ?? { kind: "landing" };
   });
 
   const routeRef = useRef<AppRoute>(route);
@@ -104,10 +128,6 @@ export function useHashRoute() {
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
-    }
-
-    if (!window.location.hash || window.location.hash === "#" || window.location.hash === "#/") {
-      window.history.replaceState(null, "", "#/dashboard");
     }
 
     const handleHashChange = () => {

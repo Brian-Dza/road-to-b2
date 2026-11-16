@@ -44,14 +44,33 @@ function attachStrictBrowserGuardian(page: Page): BrowserGuardian {
   };
 }
 
+async function signUpFreshTestAccount(
+  page: Page,
+  displayName = "Estudiante E2E",
+): Promise<{ readonly email: string; readonly password: string }> {
+  const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `e2e-${uniqueSuffix}@roadtob2.test`;
+  const password = "TestPasswordB2!2026";
+
+  await page.goto("/#/signup");
+  await page.locator("#signup-name").fill(displayName);
+  await page.locator("#signup-email").fill(email);
+  await page.locator("#signup-password").fill(password);
+  await page.getByRole("button", { name: "Crear cuenta y comenzar Bootcamp" }).click();
+  await expect(page.getByRole("heading", { name: "Panel Estratégico Road to B2" })).toBeVisible({
+    timeout: 20_000,
+  });
+
+  return { email, password };
+}
+
 test.describe("Road to B2 — Verificación E2E Integral en Chromium Real", () => {
   test("Escenario 1: Cimientos A1–B1, Test Diagnóstico con explicaciones en español y dominio de cápsula", async ({
     page,
   }) => {
     const guardian = attachStrictBrowserGuardian(page);
 
-    await page.goto("/#/dashboard");
-    await expect(page.getByRole("heading", { name: "Panel Estratégico Road to B2" })).toBeVisible();
+    await signUpFreshTestAccount(page, "Estudiante Escenario 1");
 
     await page.getByRole("link", { name: "Cimientos A1–B1" }).click();
     await expect(page).toHaveURL(/#\/foundations$/);
@@ -152,7 +171,7 @@ test.describe("Road to B2 — Verificación E2E Integral en Chromium Real", () =
     test.setTimeout(90_000);
     const guardian = attachStrictBrowserGuardian(page);
 
-    await page.goto("/#/dashboard");
+    await signUpFreshTestAccount(page, "Estudiante Escenario 2");
 
     // 1. Verificar los 3 Sprints y las 15 tarjetas de días completas
     await expect(page.getByRole("heading", { name: /Sprint 1 \(Días 1–5\)/ })).toBeVisible();
@@ -479,6 +498,7 @@ test.describe("Road to B2 — Verificación E2E Integral en Chromium Real", () =
     test.setTimeout(90_000);
     const guardian = attachStrictBrowserGuardian(page);
 
+    await signUpFreshTestAccount(page, "Estudiante Escenario 3");
     await page.goto("/#/mocks");
     await expect(
       page.getByRole("heading", { name: "Centro de Simulacros Oficiales iTEP (80 Minutos)" }),
@@ -625,7 +645,7 @@ test.describe("Road to B2 — Verificación E2E Integral en Chromium Real", () =
     const guardian = attachStrictBrowserGuardian(page);
 
     // 1. Generar progreso real en los 5 dominios persistentes (días, cimientos, diagnóstico, writing, simulacro)
-    await page.goto("/#/dashboard");
+    await signUpFreshTestAccount(page, "Estudiante Escenario 4");
     await page.getByLabel("Estado de dominio del Día 1", { exact: true }).selectOption("mastered");
     await page.getByLabel("Estado de dominio del Día 2", { exact: true }).selectOption("in_review");
 
@@ -783,7 +803,7 @@ test.describe("Road to B2 — Verificación E2E Integral en Chromium Real", () =
     const guardian = attachStrictBrowserGuardian(page);
 
     // 1. Navegar desde la Card 4 del Dashboard hacia #/vocabulary
-    await page.goto("/#/dashboard");
+    await signUpFreshTestAccount(page, "Estudiante Escenario 5");
     await expect(
       page.getByRole("heading", { name: "Vocabulario Inteligente · Byme Lenguage" }),
     ).toBeVisible();
@@ -965,6 +985,131 @@ test.describe("Road to B2 — Verificación E2E Integral en Chromium Real", () =
     await expect(page.getByText("0 / 75")).toBeVisible();
     await expect(page.getByText("1 / 61 tarjetas")).toBeVisible();
 
+    guardian.assertClean();
+  });
+
+  test("Escenario 6: Landing Page, Login/Registro multi-usuario en Supabase, Perfil Personal, Bóveda AES-GCM y Aislamiento entre Cuentas", async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+    const guardian = attachStrictBrowserGuardian(page);
+
+    // 1. Landing Page pública y protección de rutas sin sesión
+    await page.goto("/#/");
+    await expect(
+      page.getByRole("heading", {
+        name: /Pasa de B1 a B2 en el examen iTEP Academic-Plus/i,
+      }),
+    ).toBeVisible();
+
+    await page.goto("/#/dashboard");
+    await expect(page).toHaveURL(/#\/login$/);
+    await expect(
+      page.getByRole("heading", { name: "Inicia sesión en tu Bootcamp personal" }),
+    ).toBeVisible();
+
+    // 2. Registrar Usuario A con metas personalizadas
+    await page.getByRole("tab", { name: "Crear cuenta" }).click();
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const userAEmail = `e2e-ana-${suffix}@roadtob2.test`;
+    const userAPassword = "AnaSecureKey!2026";
+
+    await page.locator("#signup-name").fill("Ana Sofía Morales");
+    await page.locator("#signup-email").fill(userAEmail);
+    await page.locator("#signup-password").fill(userAPassword);
+    await page.locator('label:has(input[name="targetScore"][value="4.2"])').click();
+    await page.getByRole("button", { name: "Crear cuenta y comenzar Bootcamp" }).click();
+
+    await expect(page.getByRole("heading", { name: "Panel Estratégico Road to B2" })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/Hola,\s*Ana Sofía Morales/)).toBeVisible();
+    await expect(page.getByText(/Meta Personal B2 >= 4\.2 \/ 6\.0/)).toBeVisible();
+
+    // 3. Modificar progreso, perfil personal y guardar Gemini API Key cifrada con AES-GCM
+    await page.getByLabel("Estado de dominio del Día 1", { exact: true }).selectOption("mastered");
+    await expect(page.getByText("1 / 15")).toBeVisible();
+
+    await page.getByRole("button", { name: "Ajustes y Respaldo" }).click();
+    const settingsDialog = page.locator("dialog[open]");
+    await expect(settingsDialog).toBeVisible();
+
+    await settingsDialog.getByLabel(/Nombre visible/).fill("Ana Sofía B2");
+    await settingsDialog
+      .getByLabel(/Objetivo académico o profesional/)
+      .fill("Beca Posgrado Internacional");
+    await settingsDialog.getByLabel(/Fecha estimada de tu examen iTEP/).fill("2026-12-15");
+    await settingsDialog.getByRole("button", { name: "Guardar perfil" }).click();
+    await expect(
+      settingsDialog.getByText("Perfil personal actualizado y sincronizado en tu cuenta."),
+    ).toBeVisible();
+
+    const sampleGeminiKey = "AIzaSyTestEncryptedKeyForAna00012345";
+    await settingsDialog.getByLabel("Clave personal de Google AI Studio").fill(sampleGeminiKey);
+    await settingsDialog.getByRole("button", { name: "Guardar clave" }).click();
+    await expect(settingsDialog.getByText("Cifrada y activa (AES-GCM)")).toBeVisible();
+
+    // Verificar que la clave NUNCA existe en texto plano en localStorage
+    const dumpedLocalStorage = await page.evaluate(() => JSON.stringify(window.localStorage));
+    expect(dumpedLocalStorage).not.toContain(sampleGeminiKey);
+
+    await settingsDialog.getByRole("button", { name: "Cerrar ajustes" }).click();
+    await expect(page.getByText(/Hola,\s*Ana Sofía B2/)).toBeVisible();
+    await expect(page.getByText(/Objetivo: Beca Posgrado Internacional/)).toBeVisible();
+
+    // 4. Cerrar sesión de Ana y registrar Usuario B en el MISMO navegador -> cero contaminación
+    await page.getByRole("button", { name: "Cerrar sesión" }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: /Pasa de B1 a B2 en el examen iTEP Academic-Plus/i,
+      }),
+    ).toBeVisible();
+
+    const userBEmail = `e2e-carlos-${suffix}@roadtob2.test`;
+    await page.getByRole("link", { name: "Crear cuenta gratis" }).click();
+    await page.locator("#signup-name").fill("Carlos Méndez");
+    await page.locator("#signup-email").fill(userBEmail);
+    await page.locator("#signup-password").fill("CarlosKey!2026");
+    await page.getByRole("button", { name: "Crear cuenta y comenzar Bootcamp" }).click();
+
+    await expect(page.getByRole("heading", { name: "Panel Estratégico Road to B2" })).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/Hola,\s*Carlos Méndez/)).toBeVisible();
+    await expect(page.getByText("0 / 15")).toBeVisible();
+
+    await page.getByRole("button", { name: "Ajustes y Respaldo" }).click();
+    const carlosDialog = page.locator("dialog[open]");
+    await expect(carlosDialog.getByText("Sin configurar")).toBeVisible();
+    await carlosDialog.getByRole("button", { name: "Cerrar ajustes" }).click();
+
+    // 5. Nuevo contexto aislado (simulando otro dispositivo sin localStorage) iniciando sesión como Ana
+    const secondDeviceContext = await browser.newContext();
+    const secondDevicePage = await secondDeviceContext.newPage();
+    const secondGuardian = attachStrictBrowserGuardian(secondDevicePage);
+
+    await secondDevicePage.goto("http://127.0.0.1:4173/#/login");
+    await secondDevicePage.locator("#signin-email").fill(userAEmail);
+    await secondDevicePage.locator("#signin-password").fill(userAPassword);
+    await secondDevicePage.getByRole("button", { name: "Iniciar sesión" }).click();
+
+    await expect(
+      secondDevicePage.getByRole("heading", { name: "Panel Estratégico Road to B2" }),
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(secondDevicePage.getByText(/Hola,\s*Ana Sofía B2/)).toBeVisible();
+    await expect(secondDevicePage.getByText(/Objetivo: Beca Posgrado Internacional/)).toBeVisible();
+    await expect(secondDevicePage.getByText("1 / 15")).toBeVisible();
+
+    await secondDevicePage.getByRole("button", { name: "Ajustes y Respaldo" }).click();
+    const anaSecondDeviceDialog = secondDevicePage.locator("dialog[open]");
+    await expect(anaSecondDeviceDialog.getByText("Cifrada y activa (AES-GCM)")).toBeVisible();
+    await expect(
+      anaSecondDeviceDialog.getByLabel("Clave personal de Google AI Studio"),
+    ).toHaveValue(sampleGeminiKey);
+
+    secondGuardian.assertClean();
+    await secondDeviceContext.close();
     guardian.assertClean();
   });
 });

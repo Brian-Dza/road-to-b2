@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 export type ThemePreference = "system" | "light" | "dark";
 
 const COLOR_SCHEME_STORAGE_KEY = "color-scheme";
+const THEME_CHANGE_EVENT = "road-to-b2:theme-change";
 
 function readStoredPreference(): ThemePreference {
   if (typeof window === "undefined") {
@@ -36,6 +37,23 @@ function syncMetaColorScheme(preference: ThemePreference): void {
   }
 }
 
+export function applyThemePreferenceImperatively(next: ThemePreference): void {
+  syncMetaColorScheme(next);
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    if (next === "system") {
+      window.localStorage.removeItem(COLOR_SCHEME_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, next);
+    }
+  } catch {
+    // Theme still applies to <meta name="color-scheme"> even when storage is restricted
+  }
+  window.dispatchEvent(new CustomEvent<ThemePreference>(THEME_CHANGE_EVENT, { detail: next }));
+}
+
 export function useThemePreference() {
   const [preference, setPreferenceState] = useState<ThemePreference>(() => readStoredPreference());
   const [systemIsDark, setSystemIsDark] = useState<boolean>(() => readSystemDark());
@@ -57,11 +75,23 @@ export function useThemePreference() {
       }
     };
 
+    const handleCustomTheme = (event: Event) => {
+      if (event instanceof CustomEvent) {
+        const detail = event.detail;
+        if (detail === "system" || detail === "light" || detail === "dark") {
+          setPreferenceState(detail);
+          syncMetaColorScheme(detail);
+        }
+      }
+    };
+
     window.addEventListener("storage", handleStorage);
+    window.addEventListener(THEME_CHANGE_EVENT, handleCustomTheme);
 
     if (typeof window.matchMedia !== "function") {
       return () => {
         window.removeEventListener("storage", handleStorage);
+        window.removeEventListener(THEME_CHANGE_EVENT, handleCustomTheme);
       };
     }
 
@@ -73,25 +103,14 @@ export function useThemePreference() {
 
     return () => {
       window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(THEME_CHANGE_EVENT, handleCustomTheme);
       mediaQuery.removeEventListener("change", handleMediaChange);
     };
   }, []);
 
   const setThemePreference = useCallback((next: ThemePreference) => {
     setPreferenceState(next);
-    syncMetaColorScheme(next);
-    if (typeof window === "undefined") {
-      return;
-    }
-    try {
-      if (next === "system") {
-        window.localStorage.removeItem(COLOR_SCHEME_STORAGE_KEY);
-      } else {
-        window.localStorage.setItem(COLOR_SCHEME_STORAGE_KEY, next);
-      }
-    } catch {
-      // Theme still applies to <meta name="color-scheme"> even when storage is restricted
-    }
+    applyThemePreferenceImperatively(next);
   }, []);
 
   return {

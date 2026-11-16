@@ -18,6 +18,7 @@ import {
   StatusBadge,
   StatusSelectControl,
 } from "@/components/ui/status-control.tsx";
+import { useAuth } from "@/context/auth-context.tsx";
 import { useProgress } from "@/context/progress-context.tsx";
 import { curriculumRegistry } from "@/data/curriculum-registry.ts";
 import { getVocabularyItemStatus, isVocabularyRecordDue } from "@/lib/srs.ts";
@@ -49,6 +50,7 @@ const foundations = curriculumRegistry.foundationModules;
 const coreVocab = curriculumRegistry.coreVocabulary;
 
 export function DashboardPage() {
+  const { profile } = useAuth();
   const {
     progress,
     getDayStatus,
@@ -57,6 +59,18 @@ export function DashboardPage() {
     getFoundationStatus,
     getVocabularySrsRecord,
   } = useProgress();
+
+  const daysUntilExam = useMemo(() => {
+    if (!profile?.examDate) {
+      return null;
+    }
+    const targetMs = Date.parse(`${profile.examDate}T12:00:00`);
+    if (!Number.isFinite(targetMs)) {
+      return null;
+    }
+    const diffDays = Math.ceil((targetMs - Date.now()) / (1000 * 60 * 60 * 24));
+    return diffDays;
+  }, [profile?.examDate]);
 
   const metrics = useMemo(() => {
     let masteredDays = 0;
@@ -262,11 +276,33 @@ export function DashboardPage() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="default">Bootcamp Intensivo 15 Días</Badge>
-            <Badge variant="success">Meta iTEP Academic-Plus B2 &gt;= 3.5 (Segura 3.8–4.4)</Badge>
+            <Badge variant="success">
+              Meta Personal B2 &gt;= {(profile?.targetItepScore ?? 3.8).toFixed(1)} / 6.0
+            </Badge>
+            {profile ? (
+              <Badge variant="neutral">
+                Base {profile.currentCefr} · {profile.dailyGoalMinutes} min/día
+              </Badge>
+            ) : null}
+            {daysUntilExam !== null ? (
+              <Badge variant={daysUntilExam <= 5 ? "warning" : "default"} className="tabular-nums">
+                {daysUntilExam > 0
+                  ? `Examen en ${daysUntilExam} días (${profile?.examDate})`
+                  : daysUntilExam === 0
+                    ? "Examen hoy"
+                    : `Fecha objetivo: ${profile?.examDate}`}
+              </Badge>
+            ) : null}
           </div>
           <h1 className="mt-2 text-xl font-bold tracking-tight text-ink sm:text-2xl">
             Panel Estratégico Road to B2
           </h1>
+          {profile ? (
+            <p className="mt-1 text-xs font-medium text-ink-muted">
+              Hola, <strong className="text-ink">{profile.displayName}</strong>
+              {profile.bioGoal.trim().length > 0 ? ` · Objetivo: ${profile.bioGoal}` : ""}
+            </p>
+          ) : null}
         </div>
         <p className="max-w-[52ch] text-xs leading-relaxed text-ink-muted">
           Entrenamiento diario de 120 a 160 min en las 5 secciones oficiales: Grammar (10m),
