@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge.tsx";
 import { useProgress } from "@/context/progress-context.tsx";
 import { curriculumRegistry } from "@/data/curriculum-registry.ts";
 import { formatSecondsMmSs } from "@/lib/text-parsers.ts";
-import { cn } from "@/lib/utils.ts";
+import { cn, resolvePublicAssetUrl } from "@/lib/utils.ts";
 import type { SpeakingSection, SpeakingTaskItem } from "@/schemas/curriculum.schema.ts";
 
 export interface SpeakingRunnerProps {
@@ -302,7 +302,7 @@ function SpeakingTaskCard({ task, mode, onTaskRecorded, onCriteriaChange }: Spea
           {/* biome-ignore lint/a11y/useMediaCaption: Full verbatim prompt text is displayed immediately below */}
           <audio
             controls
-            src={task.audioPrompt.audioUrl}
+            src={resolvePublicAssetUrl(task.audioPrompt.audioUrl)}
             preload="metadata"
             aria-label={`Audio del enunciado: ${task.title}`}
             className="mt-2 w-full"

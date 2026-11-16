@@ -9,6 +9,7 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
+      "!!**/.git",
       "!!**/node_modules",
       "!!**/dist",
       "!!**/.venv",

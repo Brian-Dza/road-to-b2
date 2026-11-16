@@ -5,15 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <meta name="referrer" content="no-referrer" />
-    <script>
-      try {
-        const savedScheme = localStorage.getItem("color-scheme");
-        if (savedScheme === "light" || savedScheme === "dark") {
-          const meta = document.querySelector('meta[name="color-scheme"]');
-          if (meta) meta.content = savedScheme;
-        }
-      } catch {}
-    </script>
+    <script src="%BASE_URL%theme-init.js"></script>
     <title>Road to B2 — iTEP Academic-Plus 15-Day Bootcamp</title>
   </head>
   <body>

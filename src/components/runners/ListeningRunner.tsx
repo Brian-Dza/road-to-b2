@@ -16,7 +16,7 @@ import { ExamTimer } from "@/components/ui/exam-timer.tsx";
 import { useProgress } from "@/context/progress-context.tsx";
 import { curriculumRegistry } from "@/data/curriculum-registry.ts";
 import { formatSecondsMmSs } from "@/lib/text-parsers.ts";
-import { cn } from "@/lib/utils.ts";
+import { cn, resolvePublicAssetUrl } from "@/lib/utils.ts";
 import type { ChoiceId, ListeningPartItem, ListeningSection } from "@/schemas/curriculum.schema.ts";
 
 export interface ListeningRunnerProps {
@@ -114,7 +114,7 @@ function ListeningTrackCard({
         {/* biome-ignore lint/a11y/useMediaCaption: Verbatim multi-speaker transcript is linked via aria-details={transcriptId} */}
         <audio
           ref={audioRef}
-          src={item.audio.audioUrl}
+          src={resolvePublicAssetUrl(item.audio.audioUrl)}
           preload="metadata"
           aria-details={transcriptId}
           onLoadedMetadata={(e) => {
@@ -218,7 +218,7 @@ function ListeningTrackCard({
             {/* biome-ignore lint/a11y/useMediaCaption: Full multi-speaker verbatim transcript is linked immediately below via transcriptId */}
             <audio
               controls
-              src={item.audio.audioUrl}
+              src={resolvePublicAssetUrl(item.audio.audioUrl)}
               preload="metadata"
               aria-label={`Re-escucha analítica: ${item.title}`}
               className="mt-1 w-full"

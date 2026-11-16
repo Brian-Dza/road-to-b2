@@ -1,6 +1,6 @@
 import { Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils.ts";
+import { cn, resolvePublicAssetUrl } from "@/lib/utils.ts";
 
 export interface VocabularyAudioButtonProps {
   readonly audioUrl: string;
@@ -63,7 +63,7 @@ export function VocabularyAudioButton({
       {/* biome-ignore lint/a11y/useMediaCaption: short lexical pronunciation clip paired with full written term, IPA, and example sentence directly on card */}
       <audio
         ref={audioRef}
-        src={audioUrl}
+        src={resolvePublicAssetUrl(audioUrl)}
         preload="metadata"
         onEnded={() => setIsPlaying(false)}
         onPause={() => setIsPlaying(false)}
