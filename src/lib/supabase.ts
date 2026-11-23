@@ -2,19 +2,23 @@ import { createClient } from "@supabase/supabase-js";
 import { type RegisterEdgeResponse, RegisterEdgeResponseSchema } from "@/schemas/account.schema.ts";
 import type { CefrLevel } from "@/schemas/curriculum.schema.ts";
 
-const DEFAULT_SUPABASE_URL = "https://jsvqwdgjobhlzchpuxpy.supabase.co";
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_q8mpBaBUFhotVjXm1vZomQ_frDsjBtz";
-
 const envUrl = import.meta.env.VITE_SUPABASE_URL;
 const envKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-const SUPABASE_URL: string =
-  typeof envUrl === "string" && envUrl.trim().length > 0 ? envUrl.trim() : DEFAULT_SUPABASE_URL;
+if (typeof envUrl !== "string" || envUrl.trim().length === 0) {
+  throw new Error(
+    "Missing VITE_SUPABASE_URL. Copy .env.example to .env and configure your Supabase project URL.",
+  );
+}
 
-const SUPABASE_PUBLISHABLE_KEY: string =
-  typeof envKey === "string" && envKey.trim().length > 0
-    ? envKey.trim()
-    : DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+if (typeof envKey !== "string" || envKey.trim().length === 0) {
+  throw new Error(
+    "Missing VITE_SUPABASE_PUBLISHABLE_KEY. Copy .env.example to .env and configure your Supabase publishable key.",
+  );
+}
+
+const SUPABASE_URL: string = envUrl.trim();
+const SUPABASE_PUBLISHABLE_KEY: string = envKey.trim();
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
